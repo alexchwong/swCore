@@ -1,0 +1,231 @@
+#' Calculate low mappability genomic regions
+#'
+#' @description
+#' These functions empirically calculate low-mappability (Mappability Exclusion)
+#' regions using the given reference. A splice-aware alignment software
+#' capable of aligning reads to the genome is required.
+#' See details and examples below.
+#'
+#' @details Creating a Mappability Exclusion BED file is a three-step process.
+#' \cr
+#' * First, using `generateSyntheticReads()`, synthetic reads are systematically
+#' generated using the given genome contained within `reference_path`, prepared
+#' via [getResources]. Alternatively, use `alt_fasta_file` to set the genome
+#' sequence if this is different to that prepared by `getResources` or if 
+#' `getResources` is not yet run.
+#' * Second, an aligner such as STAR (preferably the same aligner used for the
+#' subsequent RNA-seq experiment) is required to align these reads to the source 
+#' genome. Poorly mapped regions of the genome will be reflected by regions of 
+#' low coverage depth.
+#' * Finally, the BAM file containing the aligned reads is analysed
+#' using `calculateMappability()`, to identify
+#' low-mappability regions to compile the Mappability Exclusion BED file.
+#'
+#' It is recommended to leave all parameters to their default settings. Regular
+#' users should only specify `reference_path`, `aligned_bam` and `n_threads`,
+#' as required.
+#'
+#' NB: [STAR_mappability] runs all 3 steps required, using the `STAR` aligner.
+#' This only works in systems where `STAR` is installed.
+#'
+#' NB2: [buildFullRef] builds the STAR reference, then calculates mappability.
+#' It then uses the calculated mappability regions to build the SpliceWiz
+#' reference.
+#'
+#' NB3: In systems where `STAR` is not available, consider using HISAT2 or
+#' Rsubread. A working example using Rsubread is shown below.
+#'
+#' @param reference_path The directory of the reference prepared by
+#'   [getResources]
+#' @param read_len The nucleotide length of the synthetic reads
+#' @param read_stride The nucleotide distance between adjacent synthetic reads
+#' @param error_pos The position of the procedurally-generated nucleotide error
+#'   from the start of each synthetic reads
+#' @param verbose Whether additional status messages are shown
+#' @param alt_fasta_file (Optional) The path to the user-supplied genome fasta
+#'   file, if different to that found inside the `resource` subdirectory of the
+#'   `reference_path`. If [getResources] has already been run,
+#'   this parameter should be omitted.
+#' @param aligned_bam The BAM file of alignment of the synthetic reads generated
+#'   by `generateSyntheticReads()`. Users should use a genome splice-aware
+#'   aligner, preferably the same aligner used to align the samples in their
+#'   experiment.
+#' @param threshold Genomic regions with this alignment read depth (or below)
+#'   in the aligned synthetic read BAM are defined as low
+#'   mappability regions.
+#' @param n_threads The number of threads used to calculate mappability
+#'   exclusion regions from aligned bam file of synthetic reads.
+#' @return
+#' * For `generateSyntheticReads`: writes `Reads.fa` to the `Mappability`
+#'   subdirectory inside the given `reference_path`.
+#' * For `calculateMappability`: writes a gzipped BED file
+#'   named `MappabilityExclusion.bed.gz` to the `Mappability` subdirectory
+#'   inside `reference_path`.
+#'   This BED file is automatically used by [buildRef] if its
+#'   `MappabilityRef` parameter is not specified.
+#' @examples
+#'
+#' # (1a) Creates genome resource files
+#'
+#' ref_path <- file.path(tempdir(), "refWithMapExcl")
+#'
+#' getResources(
+#'     reference_path = ref_path,
+#'     fasta = chrZ_genome(),
+#'     gtf = chrZ_gtf()
+#' )
+#'
+#' # (1b) Systematically generate reads based on the example genome:
+#'
+#' generateSyntheticReads(
+#'     reference_path = ref_path
+#' )
+#' \dontrun{
+#'
+#' # (2) Align the generated reads using Rsubread:
+#'
+#' # (2a) Build the Rsubread genome index:
+#'
+#' subreadIndexPath <- file.path(ref_path, "Rsubread")
+#' if(!dir.exists(subreadIndexPath)) dir.create(subreadIndexPath)
+#' Rsubread::buildindex(
+#'     basename = file.path(subreadIndexPath, "reference_index"), 
+#'     reference = chrZ_genome()
+#' )
+#'
+#' # (2b) Align the synthetic reads using Rsubread::subjunc()
+#'
+#' Rsubread::subjunc(
+#'     index = file.path(subreadIndexPath, "reference_index"), 
+#'     readfile1 = file.path(ref_path, "Mappability", "Reads.fa"),
+#'     output_file = file.path(ref_path, "Mappability", "AlignedReads.bam"),
+#'     useAnnotation = TRUE,
+#'     annot.ext = chrZ_gtf(),
+#'     isGTF = TRUE
+#' )
+#'
+#' # (3) Analyse the aligned reads in the BAM file for low-mappability regions:
+#'
+#' calculateMappability(
+#'     reference_path = ref_path,
+#'     aligned_bam = file.path(ref_path, "Mappability", "AlignedReads.bam")
+#' )
+#'
+#' # (4) Build the example reference using the calculated Mappability Exclusions
+#'
+#' buildRef(ref_path)
+#'
+#' # NB the default is to search for the BED file generated by
+#' # `calculateMappability()` in the given reference_path
+#' }
+#' @name Mappability-methods
+#' @aliases
+#' generateSyntheticReads
+#' calculateMappability
+#' @seealso [Build-Reference-methods]
+#' @md
+NULL
+
+#' @describeIn Mappability-methods Generates synthetic reads from a
+#' genome FASTA file, for mappability calculations.
+#' @export
+generateSyntheticReads <- function(reference_path,
+        read_len = 70, read_stride = 10, error_pos = 35,
+        verbose = TRUE, alt_fasta_file) {
+    .gmr_check_params(read_len, read_stride, error_pos + 1)
+    if (missing(alt_fasta_file)) {
+        alt_fasta_file <- .STAR_get_FASTA(reference_path)
+        if (!file.exists(alt_fasta_file)) 
+            .log(paste(
+                "In generateSyntheticReads,",
+                "failed to generate genome fasta file from given reference"
+            ))
+    } else if (!file.exists(alt_fasta_file)) {
+        .log(paste("In generateSyntheticReads,",
+            "given fasta file", alt_fasta_file, "not found"))
+    }
+    .validate_path(file.path(normalizePath(reference_path), "Mappability"))
+    # Run map read generator:
+    outfile <- file.path(normalizePath(reference_path),
+        "Mappability", "Reads.fa")
+    .log(paste("Generating synthetic reads, saving to", outfile), "message")
+    .run_processBAM_GenerateMapReads(
+        normalizePath(alt_fasta_file), outfile,
+        read_len, read_stride, error_pos + 1
+    )
+    .STAR_clean_temp_FASTA_GTF(reference_path)
+}
+
+#' @describeIn Mappability-methods Generate a BED file defining
+#' low mappability regions, using reads generated by
+#' \code{generateSyntheticReads()}, aligned to the genome.
+#' @export
+calculateMappability <- function(reference_path,
+        aligned_bam = file.path(reference_path, "Mappability",
+            "Aligned.out.bam"),
+        threshold = 4, n_threads = 1) {
+    if (!file.exists(aligned_bam))
+        .log(paste("In calculateMappability(),",
+            aligned_bam, "BAM file does not exist"))
+
+    .validate_path(file.path(normalizePath(reference_path), "Mappability"))
+    output_file <- file.path(normalizePath(reference_path), "Mappability",
+        "MappabilityExclusion.bed")
+
+    .log(paste("Calculating Mappability Exclusion regions from:",
+        aligned_bam), type = "message")
+    .run_processBAM_MapExclusionRegions(
+        bamfile = normalizePath(aligned_bam),
+        output_file = output_file,
+        threshold = threshold,
+        n_threads = n_threads
+    )
+}
+
+# Checks whether given parameters are valid
+.gmr_check_params <- function(read_len, read_stride, error_pos) {
+    if (!is.numeric(read_len) || read_len < 30) {
+        .log(paste("In generateSyntheticReads,",
+            "read_len must be numerical and at least 30"))
+    }
+    if (!is.numeric(read_stride) || read_stride > read_len) {
+        .log(paste("In generateSyntheticReads,",
+            "read_stride must be numerical and less than read_len"))
+    }
+    if (!is.numeric(error_pos) || error_pos > read_len) {
+        .log(paste("In generateSyntheticReads,",
+            "error_pos must be numerical and less than read_len"))
+    }
+}
+
+# Wrappers to native Rcpp functions:
+
+.run_processBAM_GenerateMapReads <- function(genome.fa = "", out.fa,
+    read_len = 70, read_stride = 10, error_pos = 36) {
+    return(
+        c_GenerateMappabilityReads(normalizePath(genome.fa),
+            file.path(normalizePath(dirname(out.fa)), basename(out.fa)),
+            read_len = read_len,
+            read_stride = read_stride,
+            error_pos = error_pos)
+    )
+}
+
+.run_processBAM_MapExclusionRegions <- function(bamfile = "", output_file,
+        threshold = 4, includeCov = FALSE, n_threads = 1) {
+    s_bam <- normalizePath(bamfile)
+
+    c_GenerateMappabilityRegions(s_bam,
+        output_file,
+        threshold = threshold,
+        includeCov = includeCov,
+        verbose = TRUE, n_threads = n_threads
+    )
+    # check file is actually made; then gzip it
+    if (file.exists(paste0(output_file, ".txt"))) {
+        R.utils::gzip(filename = paste0(output_file, ".txt"),
+            destname = paste0(output_file, ".gz"))
+    } else {
+        .log(paste(paste0(output_file, ".txt"), "was not produced"))
+    }
+}

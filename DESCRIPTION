@@ -1,0 +1,96 @@
+Package: swCore
+Title: Minimal implementation of SpliceWiz
+Version: 0.99.0
+Date: 2024-01-05
+Authors@R: c(person("Alex Chit Hei", "Wong", email="a.wong@centenary.org.au", 
+		role=c("aut", "cre", "cph")),
+	person("Ulf", "Schmitz", role=c("ctb")),
+	person("William", "Ritchie", role=c("cph")))
+Description: 
+	This package contains the core functions of SpliceWiz for the purposes of
+	conda installation for environments such as Galaxy servers.
+License: MIT + file LICENSE
+Depends: NxtIRFdata
+Imports:
+    ompBAM,
+	methods, stats, utils, tools, parallel, scales,
+	magrittr,
+	Rcpp (>= 1.0.5),
+	data.table,
+	fst,
+	ggplot2,
+	AnnotationHub, 
+	BiocFileCache,
+	BiocGenerics,
+	BiocParallel,
+	Biostrings, 
+	BSgenome,
+	DelayedArray,
+	DelayedMatrixStats,
+	genefilter,
+	GenomeInfoDb,
+	GenomicRanges,
+	HDF5Array,
+    htmltools,
+	IRanges,
+    patchwork,
+    pheatmap,
+	progress,
+	plotly,
+	R.utils,
+	rhdf5,
+	rtracklayer,
+	SummarizedExperiment, 
+	S4Vectors,
+	shiny,
+	shinyFiles,
+	shinyWidgets,
+	shinydashboard,
+    stringi,
+	rhandsontable,
+	DT,
+	grDevices,
+	heatmaply,
+	matrixStats,
+	RColorBrewer,
+	rvest
+Suggests: 
+    knitr, rmarkdown, openssl, crayon, splines, testthat (>= 3.0.0), 
+    DESeq2, limma, DoubleExpSeq, edgeR, DBI, GO.db, fgsea, Rsubread 
+LinkingTo: 
+    ompBAM,
+    Rcpp,
+    zlibbioc, 
+	RcppProgress  
+SystemRequirements:
+    C++11, GNU make
+Collate: AllImports.R
+	RcppExports.R
+	zzz.R
+	AllClasses.R
+	AllGenerics.R
+	NxtSE-methods.R
+	globals.R 
+	example_data.R
+	wrappers.R
+	utils.R
+	File_finders.R
+    BuildRef_GO.R
+	BuildRef.R
+	STAR_utils.R
+	Mappability.R
+    ProcessBAM_docs.R
+	ProcessBAM.R
+	CollateData.R
+	MakeSE.R
+	Coverage.R
+	swCore-package.R
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+VignetteBuilder: knitr
+biocViews: Software, Transcriptomics, RNASeq, AlternativeSplicing, Coverage, 
+  DifferentialSplicing, DifferentialExpression, GUI, Sequencing
+URL: https://github.com/alexchwong/swCore
+BugReports: https://support.bioconductor.org/
+Config/testthat/edition: 3

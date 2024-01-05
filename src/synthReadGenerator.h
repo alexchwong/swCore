@@ -1,8 +1,6 @@
-MIT License
- 
+/* synthReadGenerator.h Generates synthetic mappability reads
+
 Copyright (C) 2021 Alex Chit Hei Wong
-Copyright (C) 2016 William Ritchie
-  - original: https://github.com/williamritchie/IRFinder/tree/IRFinder-1.3.1)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,4 +18,30 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+SOFTWARE.  */
+
+#ifndef CODE_SYNTHREADGEN
+#define CODE_SYNTHREADGEN
+
+#include "includedefine.h"
+
+class synthReadGenerator {
+  private:
+    unsigned int read_len;   // read length of synthetic reads
+    int error_pos;  // position of induced error
+  public:
+    synthReadGenerator();
+    synthReadGenerator(
+      unsigned int read_length,
+      int error_position
+    );
+  
+    bool checkDNA(char * input_read);
+    std::string GenerateReadError(
+      char * input_read, 
+      const unsigned int direction, 
+      const size_t error_seed
+    );
+};
+
+#endif
